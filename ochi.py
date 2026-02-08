@@ -2,114 +2,113 @@ import pyxel
 import random
 
 
-# ゲーム設定
-W, H = 120, 240 #画面サイズ
-jspeed = 10 # 自機移動速度
-rspeed = 2 # 岩移動速度
+# ゲーム設定(定数)
+W, H = 120, 200     # 画面サイズ
+JSPEED = 10         # 自機スピード
+JC = 10             # 自機カラー
+RC = 9              # 岩カラー
+N_LEVELUP = 5       # 何回ごとに難易度アップするか
+RSPEED_MAX = 10     # 岩スピードの上限
+RR_MAX = 30         # 岩サイズの上限
 
-# 自機初期パラメーター
-jx = W // 2  # X座標
-jy = H - 20 # Y座標
-jr = 3   # サイズ(r)
-jc = 10  # 色
-
-# 岩初期パラメーター
-rx = W // 2  # X座標
-ry = 0 # Y座標
-rr = 3   # サイズ(r)
-rc = 9  # 色
-
-# 岩回避回数＆スコア初期化
-i = 0
-score = 0
-
-# 当たりフラグ
-hit = False
-
-# ウインドウ初期化
-pyxel.init(W, H, title="Ochi-Yoke")
+# clamp関数
+def clamp(v, min_v, max_v):
+    if v < min_v:
+        return min_v  # v が下限値未満の場合は下限値(min_v)を返却
+    if v > max_v:
+        return max_v  # v が上限値を超える場合は上限値(max_v)を返却
+    else:
+        return v      # v が下限値～上限値の範囲内の場合は vを返却
 
 
-def update():
-    global jx
-    global rx
-    global ry
-    global rr
-    global rspeed
-    global i
-    global score
-    global hit
+class Game:
+    def __init__(self):
+        pyxel.init(W, H, title="Ochi-Yoke", fps = 60) # 画面初期化
+        self.reset()                                  # リセット処理呼び出し
+        pyxel.run(self.update, self.draw)             # ゲーム開始
 
-    # 当たってた場合(hit == True)はupdateを停止。Rキー入力でリセット
-    if hit == True:
-        if pyxel.btnp(pyxel.KEY_R):
-            # 岩回避回数＆スコア初期化
-            i = 0
-            score = 0
-            rx = W // 2  # X座標
-            ry = 0 # Y座標
-            rr = 3
-            jx = W // 2  # X座標
-            rspeed = 2 # 岩移動速度
 
-            # 当たりフラグ
-            hit = False 
-        return
+    # リセット処理
+    def reset(self):
+        # 自機
+        self.jx = W // 2         # X座標
+        self.jy = H - 20         # Y座標
+        self.jr = 3              # サイズ(r)
+        self.jc = JC             # カラー
+        self.jspeed = JSPEED     # スピード
 
-    # ボタン入力受付(左右)
-    if pyxel.btn(pyxel.KEY_LEFT):
-        jx -= jspeed
-    if pyxel.btn(pyxel.KEY_RIGHT):
-        jx += jspeed
+        # 岩
+        self.rx = W // 2         # X座標
+        self.ry = 0              # Y座標
+        self.rr = 3              # サイズ(r)
+        self.rc = RC             # カラー
+        self.rspeed = 2          # スピード
 
-    # 画面外飛び出し防止
-    if jx < jr:
-        jx = jr
-    if jx > W - jr - 1:
-        jx = W - jr -1
+        # フラグ・カウンタ
+        self.hit = False         # 当たりフラグ
+        self.passed_count = 0    # 回避回数
+        self.score = 0           # スコア
 
-    # 岩移動
-    ry += rspeed
 
-    # 当たり判定（円と円）
-    dx = jx - rx
-    dy = jy - ry
-    if dx*dx + dy*dy <= (jr + rr) * (jr + rr):
-        hit = True
-        return
+    def update(self):
+        # 当たってた場合(hit == True)は以降の処理をスキップ(returnでupdate抜ける)。Rキーでリセット。
+        if self.hit == True:
+            if pyxel.btnp(pyxel.KEY_R):
+                self.reset()
+            return
+
+        # ボタン入力受付(左右)
+        if pyxel.btn(pyxel.KEY_LEFT):
+            self.jx -= self.jspeed
+        if pyxel.btn(pyxel.KEY_RIGHT):
+            self.jx += self.jspeed
+
+        # 画面外飛び出し防止(自機のX座標をclamp関数で補正)
+        # 下限は自機サイズ(半径)
+        # 上限は画面幅 - 自機サイズ - 1
+        self.jx = clamp(self.jx, self.jr, W - self.jr - 1)
+
+        # 岩移動
+        self.ry += self.rspeed
+
+        # 当たり判定（円と円）
+        dx = self.jx - self.rx
+        dy = self.jy - self.ry
+        if dx*dx + dy*dy <= (self.jr + self.rr) * (self.jr + self.rr):
+            self.hit = True
+            return
     
+        # 岩が画面下まで行った時の処理
+        if self.ry - self.rr > H:
+            #岩 リスポーン
+            self.ry = -self.rr                                  # Y座標を上に
+            self.rx = random.randint(self.rr, W - self.rr -1)   # X座標はランダム
 
-    # 画面下まで行ったら上に戻す。X座標はランダムにする。岩回避回数をカウントアップする
-    if ry - rr > H:
-        ry = -rr # Y座標を上に
-        rx = random.randint(rr, W - rr -1)  # X座標はランダム
-        i = i + 1 # 岩回避回数をカウントアップ
-        score = i * 10 # スコア計算
-        # 回避するごとに難易度アップ
-        if i > 0 and i % 2 == 0:
-            rspeed = rspeed + 1
-            rr = min (rr + 1, 30)
+            # 回避回数 ＆ スコア更新
+            self.passed_count = self.passed_count + 1         # 回避回数をカウントアップ
+            self.score = self.passed_count * 10               # スコア計算
+
+            # 難易度アップ
+            if self.passed_count > 0 and self.passed_count % N_LEVELUP == 0:
+                self.rspeed = min(self.rspeed + 1, RSPEED_MAX)
+                self.rr = min(self.rr + 1, RR_MAX)
 
 
-def draw():
-    # 画面初期化
-    pyxel.cls(0)
+    def draw(self):
+        # 画面初期化
+        pyxel.cls(0)
 
-    # デバッグ表示
-    # pyxel.text(x = 10, y = 20, s = "jx:" + str(jx), col = 1)
+        # スコア表示
+        pyxel.text(x = 10, y = 10, s = "SCORE: " + str(self.score), col = 7)
 
-    # スコア表示
-    pyxel.text(x = 10, y = 10, s = "SCORE :" + str(score), col = 7)
+        # 自機を描画
+        pyxel.circ(x = self.jx, y = self.jy, r = self.jr, col = self.jc)
 
-    # 自機を描画
-    pyxel.circ(x = jx, y = jy, r = jr, col = jc)
+        # 岩を描画
+        pyxel.circ(x = self.rx, y = self.ry, r = self.rr, col = self.rc)
 
-    # 岩を描画
-    pyxel.circ(x = rx, y = ry, r = rr, col = rc)
+        if self.hit == True:
+            pyxel.text(10, 40, "GAME OVER !", 7)        
+            pyxel.text(10, 50, "PRESS R KEY TO RESTART", 7)        
 
-    if hit == True:
-        pyxel.text(10, 40, "GAME OVER !", 7)        
-        pyxel.text(10, 50, "PRESS R KEY TO CONTINUE", 7)        
-
-pyxel.run(update, draw)
-
+Game()
